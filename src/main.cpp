@@ -181,6 +181,89 @@ void loop() {
     arduboy.display();
 }
 
+void drawControls(){
+    arduboy.setCursor(40, 0);
+    arduboy.print(F("CONTROLS"));
+
+    // линия под заголовком
+    arduboy.drawLine(3, 9, 125, 9);
+
+    //движение
+    const uint8_t down_x = 33;
+    const uint8_t top = 13;
+    const uint8_t bottom= 21;
+
+     // SIT
+    arduboy.drawLine(down_x, top, down_x, bottom);
+    arduboy.drawLine(down_x, bottom, down_x -3, bottom - 3);
+    arduboy.drawLine(down_x, bottom, down_x +3, bottom - 3);
+
+    arduboy.setCursor(5, 15);
+    arduboy.print(F("SIT"));
+
+       // UP
+    const uint8_t up_x = 34;
+    const uint8_t top_y = 26;
+    const uint8_t bottom_y = 34;
+
+    arduboy.drawLine(up_x, bottom_y, up_x, top_y);
+    arduboy.drawLine(up_x, top_y, up_x - 3, top_y + 3);
+    arduboy.drawLine(up_x, top_y, up_x + 3, top_y + 3);
+
+    // JUMP
+    arduboy.setCursor(5, 27);
+    arduboy.print(F("JUMP"));
+
+    //PAUSE
+    arduboy.setCursor(5, 40);
+    arduboy.print(F("PAUSE"));
+    // стрелка влево
+    const uint8_t x = 42;
+    const uint8_t y = 43;
+    arduboy.drawLine(x+6, y, x - 4, y);
+    arduboy.drawLine(x - 4, y, x - 1, y - 3);
+    arduboy.drawLine(x - 4, y, x - 1, y + 3);
+
+    //ATTACK
+    arduboy.setCursor(5,51);
+    arduboy.print(F("ATTACK"));
+
+    // стрелка вправо
+    const uint8_t x1 = 49;
+    const uint8_t y1 = 54;
+    arduboy.drawLine(x1 - 6, y1, x1+ 4, y1);
+    arduboy.drawLine(x1 + 4, y1, x1+ 1, y1 - 3);
+    arduboy.drawLine(x1+ 4, y1, x1 + 1, y1 + 3);
+    
+    //PERK
+    arduboy.setCursor(65, 15);
+    arduboy.print(F("PERK"));
+    arduboy.print(F(" A"));
+
+    //MENU
+    arduboy.setCursor(65,27);
+    arduboy.print(F("MENU"));
+    arduboy.print(F(" B"));
+
+    //LONG JUMP
+    arduboy.setCursor(65,40);
+    arduboy.print(F("LONG"));
+    arduboy.setCursor(65,51);
+    arduboy.print(F("JUMP"));
+
+    //стрелка вверх
+    uint8_t up1 = 98;
+    uint8_t down1 = 43;
+    uint8_t down2 = 52;
+    arduboy.drawLine(up1, down2, up1, down1);
+    arduboy.drawLine(up1, down1, up1 - 3, down1 + 3);
+    arduboy.drawLine(up1, down1, up1 + 3, down1 + 3);
+
+    //+A
+    arduboy.setCursor(102, 44);
+    arduboy.print(F(" + A"));
+}
+
 void movePlayer(){
 
 }
