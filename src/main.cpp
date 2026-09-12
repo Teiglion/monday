@@ -8,6 +8,7 @@
 #define attack_time 330
 #define splash_delay 1000
 #define final_screen_delay 2000
+#define level_delay 3000
 
 Arduboy2 arduboy;
 ArduboyTones sound(arduboy.audio.enabled);
@@ -51,6 +52,9 @@ uint32_t action_timestamp;
 uint32_t timer_started;
 bool player_state = true;
 bool action_music = false;
+uint8_t level;
+uint8_t total_cups[3] = {5,8,8};
+uint8_t cups;
 
 //препятсвия
 struct Obstacle {
@@ -114,6 +118,7 @@ void setup() {
     arduboy.audio.on();
     prev_state = state = SPLASH;
     a_state = NONE;
+    cups = 0;
     obstaclesInit = false;
     sound.tones(menu_theme);
     timer_started = millis();
@@ -162,8 +167,25 @@ void loop() {
 
         if (arduboy.justPressed(A_BUTTON)) state = PLAY;
     }
-    else if (state == LEVEL_COMPLETE){}
-
+    else if (state == LEVEL_COMPLETE)
+    {
+        uint32_t now = millis();
+        arduboy.setCursor(10, 10);
+        arduboy.print(F("LEVEL COMPLETE"));
+        arduboy.setCursor(10, 30);
+        arduboy.print(F("Coffee "));
+        arduboy.print(cups);
+        arduboy.print('/');
+        arduboy.println(total_cups[level]);
+        arduboy.setCursor(10, 50);
+        arduboy.print(F("Score "));
+        arduboy.print(score);
+        if(now - timer_started >= level_delay)
+        {
+            level++;
+            state = PLAY;
+        }  
+    }
     else if (state == WIN)
     {
         Sprites::drawOverwrite(0, 0, win_img, 0);
@@ -248,7 +270,6 @@ void loop() {
    //Sprites::drawSelfMasked(100, 16, sit, 0);
    //Sprites::drawOverwrite(100, 31, cabinet, 0);
    //Sprites::drawOverwrite(100, 46, cabinet, 0);
-
     arduboy.display();
 }
 
