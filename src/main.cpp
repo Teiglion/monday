@@ -119,7 +119,7 @@ const uint8_t PROGMEM route1[] = {
     G(0),   EMPTY,  EMPTY,
     O(4,0), EMPTY,  EMPTY,
     O(2,1), EMPTY,  EMPTY,
-    O(6,1), EMPTY,  EMPTY,
+    O(6,0), EMPTY,  EMPTY,
     G(1),   EMPTY,  EMPTY,
     O(5,0), EMPTY,  EMPTY,
     O(7,0), EMPTY,  EMPTY,
@@ -382,6 +382,31 @@ void loop() {
                 timer_started = millis();
                 state = LEVEL_COMPLETE;
             }
+             if (spawnIdx >= routeLens[level]) 
+            {
+            bool objectsStillActive = false;
+
+            for (uint8_t i = 0; i < OBSTACLE_COUNT; i++) {
+                if (obstacles[i].obsX >= -20) {
+                    objectsStillActive = true;
+                    break;
+                }
+            }
+
+            for (uint8_t i = 0; i < CUP_COUNT; i++) {
+                if (cupsOnMap[i].active && cupsOnMap[i].x >= -8) {
+                    objectsStillActive = true;
+                    break;
+                }
+            }
+
+            if (!objectsStillActive && cups < total_cups[level]) 
+            {
+                timer_started = millis();
+                a_state = NONE;
+                state = FAIL; // Игрок проиграл, так как кружек на карте больше нет
+            }
+        }
         }
     }
 
@@ -525,7 +550,7 @@ void movePlayer()
     if (arduboy.everyXFrames(15)) player_state = !player_state;
 
     if(arduboy.justPressed(LEFT_BUTTON)) state = PAUSE;
-    
+
     if (arduboy.pressed(UP_BUTTON) && arduboy.pressed(A_BUTTON) && a_state == NONE) 
     {
         a_state = TOP_JUMP;
