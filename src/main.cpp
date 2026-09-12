@@ -66,6 +66,7 @@ bool player_state = true;
 bool action_music = false;
 bool is_attacking = false;
 uint8_t level = 0;
+uint8_t cup_status = 0;
 uint8_t total_cups[3] = {5, 8, 8};
 uint8_t cups = 0;
 uint8_t best_score[3] = {0, 0, 0};
@@ -620,8 +621,6 @@ void scrollBG(){
     bgScrollx += SCROLL_SPEED;
 }
 
-bool cupFrame = false;
-
 void initCups()
 {
     cupsOnMap[0].x = 130;
@@ -676,20 +675,22 @@ void saveBestScore()
 
 void drawCups()
 {
-    if (arduboy.everyXFrames(8))
-    {
-        cupFrame = !cupFrame;
-    }
-
     for (uint8_t i = 0; i < CUP_COUNT; i++)
     {
         if (!cupsOnMap[i].active)
             continue;
 
-        if (cupFrame)
+        if (cup_status == 0)
             Sprites::drawSelfMasked(cupsOnMap[i].x, cupsOnMap[i].y, cup1, 0);
-        else
+        else if (cup_status == 1)
             Sprites::drawSelfMasked(cupsOnMap[i].x, cupsOnMap[i].y, cup2, 0);
+        else if (cup_status == 2)
+            Sprites::drawSelfMasked(cupsOnMap[i].x, cupsOnMap[i].y, cup3, 0);
+    }
+    if (arduboy.everyXFrames(8))
+    {
+        cup_status++;
+        if (cup_status > 2)cup_status = 0;
     }
 }
 

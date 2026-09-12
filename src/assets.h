@@ -20,6 +20,7 @@ extern const uint8_t vent[];
 
 extern const uint8_t cup1[];
 extern const uint8_t cup2[];
+extern const uint8_t cup3[];
 
 extern const uint8_t player1[];
 extern const uint8_t player2[];
