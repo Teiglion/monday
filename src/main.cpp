@@ -1,6 +1,7 @@
 #include <Arduboy2.h>
 #include <ArduboyTones.h>
 #include <stdbool.h>
+#include <EEPROM.h>
 #include "assets.h"
 #include "music.h"
 
@@ -52,9 +53,10 @@ uint32_t action_timestamp;
 uint32_t timer_started;
 bool player_state = true;
 bool action_music = false;
-uint8_t level;
-uint8_t total_cups[3] = {5,8,8};
-uint8_t cups;
+uint8_t level = 0;
+uint8_t total_cups[3] = {5, 8, 8};
+uint8_t cups = 0;
+uint8_t best_score[3] = {0, 0, 0};
 
 //препятсвия
 struct Obstacle {
@@ -62,6 +64,17 @@ struct Obstacle {
     int8_t obsLane;
     int8_t type;
 };
+
+struct Cup
+{
+    int16_t x;
+    int8_t y;
+    bool active;
+};
+
+const uint8_t CUP_COUNT = 8;
+Cup cupsOnMap[CUP_COUNT];
+
 const uint8_t* const PROGMEM obstacleSprites[]  = { 
     electro,
     wires,
@@ -93,33 +106,40 @@ void drawControls();
 void update_music();
 void movePlayer();
 void scrollBG();
+void initCups();
+void loadBestScores();
+void saveBestScore();
+void drawCups();
+void updateCups();
+void checkCupCollection();
+
 //void initObstacles();
 //void updateDifficulty();
 //void spawnSingle();
-//void spawnLine();
+//void spawnLine();З
 //void updateObstacles();
 //void drawObstacles();
 //bool checkCollision();
-
-void resetGame()
-{
-    player_x = 8;
-    player_y = 41;
-    player_state = true;
-    a_state = NONE;
-    obstaclesInit = false;
-    timer_started = millis();
-}
 
 void setup() {
     arduboy.begin();
     arduboy.clear();
     arduboy.setFrameRate(30);
     arduboy.audio.on();
+
     prev_state = state = SPLASH;
     a_state = NONE;
+
+    level = 0;
     cups = 0;
+    score = 0;
+
     obstaclesInit = false;
+
+    initCups(); 
+
+    loadBestScores();
+
     sound.tones(menu_theme);
     timer_started = millis();
 }
@@ -129,21 +149,31 @@ void loop() {
     arduboy.clear();
     arduboy.pollButtons();
     update_music();
-    if(state == SPLASH){
+    if(state == SPLASH)
+    {
         uint32_t now = millis();
-        const uint8_t *splash = (const uint8_t *)pgm_read_ptr(&splash_sprites[splash_stack]);
+
+        const uint8_t *splash =
+            (const uint8_t *)pgm_read_ptr(&splash_sprites[splash_stack]);
+
         Sprites::drawOverwrite(0, 0, splash, 0);
 
         if(now - timer_started >= splash_delay)
         {
             splash_stack++;
-            timer_started = millis();
-        }
 
-        if(now - timer_started >= splash_delay && splash_stack == 5) 
-        {
-            state = MENU;
-            splash_stack = 0;
+            if(splash_stack >= 5)
+            {
+                splash_stack = 0;
+                level = 0;
+                cups = 0;
+                score = 0;
+                state = PLAY;
+            }
+            else
+            {
+                timer_started = millis();
+            }
         }
     }
     else if (state == MENU)
@@ -172,18 +202,33 @@ void loop() {
         uint32_t now = millis();
         arduboy.setCursor(10, 10);
         arduboy.print(F("LEVEL COMPLETE"));
+
         arduboy.setCursor(10, 30);
-        arduboy.print(F("Coffee "));
+        arduboy.print(F("CUPS "));
         arduboy.print(cups);
         arduboy.print('/');
-        arduboy.println(total_cups[level]);
-        arduboy.setCursor(10, 50);
-        arduboy.print(F("Score "));
+        arduboy.print(total_cups[level]);
+
+        arduboy.setCursor(10, 45);
+        arduboy.print(F("CUPS "));
         arduboy.print(score);
+
+        arduboy.setCursor(10, 55);
+        arduboy.print(F("BEST "));
+        arduboy.print(best_score[level]);
         if(now - timer_started >= level_delay)
         {
             level++;
-            state = PLAY;
+
+            if (level >= 3)
+            {
+                state = WIN;
+            }
+            else
+            {
+                cups = 0;
+                state = PLAY;
+            }
         }  
     }
     else if (state == WIN)
@@ -232,10 +277,30 @@ void loop() {
            Sprites::drawOverwrite(x, 56, floor_img, 0); 
            x+=8;
         }
+        arduboy.setCursor(2, 0);
+        arduboy.print(F("CUPS: "));
+        arduboy.print(score);
+
+        arduboy.setCursor(82, 0);
+        arduboy.print(cups);
+        arduboy.print('/');
+        arduboy.print(total_cups[level]);
+
         arduboy.drawLine(0, 8, 128, 8, WHITE);
         arduboy.drawLine(0, 16, 128, 16, WHITE);
 
+        updateCups();
+        checkCupCollection();
+        drawCups();
         movePlayer();
+
+        if (cups >= total_cups[level])
+        {
+            saveBestScore();
+
+            timer_started = millis();
+            state = LEVEL_COMPLETE;
+        }
         /*drawObstacles();
 
         if (checkCollision())
@@ -432,4 +497,124 @@ void scrollBG(){
     Sprites::drawOverwrite(offset, 9, lamp, 0);
     Sprites::drawOverwrite(offset + 128, 9, lamp, 0);
     bgScrollx += BG_SCROLL_SPEED;
+}
+
+bool cupFrame = false;
+
+void initCups()
+{
+    cupsOnMap[0].x = 130;
+    cupsOnMap[0].y = 30;
+    cupsOnMap[0].active = true;
+
+    cupsOnMap[1].x = 170;
+    cupsOnMap[1].y = 16;
+    cupsOnMap[1].active = true;
+
+    cupsOnMap[2].x = 210;
+    cupsOnMap[2].y = 46;
+    cupsOnMap[2].active = true;
+
+    cupsOnMap[3].x = 250;
+    cupsOnMap[3].y = 30;
+    cupsOnMap[3].active = true;
+
+    cupsOnMap[4].x = 290;
+    cupsOnMap[4].y = 16;
+    cupsOnMap[4].active = true;
+
+    cupsOnMap[5].x = 330;
+    cupsOnMap[5].y = 46;
+    cupsOnMap[5].active = true;
+
+    cupsOnMap[6].x = 370;
+    cupsOnMap[6].y = 30;
+    cupsOnMap[6].active = true;
+
+    cupsOnMap[7].x = 410;
+    cupsOnMap[7].y = 16;
+    cupsOnMap[7].active = true;
+}
+
+void loadBestScores()
+{
+    for (uint8_t i = 0; i < 3; i++)
+    {
+        best_score[i] = EEPROM.read(i);
+    }
+}
+
+void saveBestScore()
+{
+    if (score > best_score[level])
+    {
+        best_score[level] = score;
+        EEPROM.update(level, score);
+    }
+}
+
+void drawCups()
+{
+    if (arduboy.everyXFrames(8))
+    {
+        cupFrame = !cupFrame;
+    }
+
+    for (uint8_t i = 0; i < CUP_COUNT; i++)
+    {
+        if (!cupsOnMap[i].active)
+            continue;
+
+        if (cupFrame)
+            Sprites::drawOverwrite(cupsOnMap[i].x, cupsOnMap[i].y, cup1, 0);
+        else
+            Sprites::drawOverwrite(cupsOnMap[i].x, cupsOnMap[i].y, cup2, 0);
+    }
+}
+
+void updateCups()
+{
+    for (uint8_t i = 0; i < CUP_COUNT; i++)
+    {
+        if (!cupsOnMap[i].active)
+            continue;
+
+        cupsOnMap[i].x -= obsSpeed;
+
+        if (cupsOnMap[i].x < -8)
+        {
+            cupsOnMap[i].x = 130;
+        }
+    }
+}
+
+void checkCupCollection()
+{
+    if (!arduboy.justPressed(A_BUTTON))
+        return;
+
+    for (uint8_t i = 0; i < CUP_COUNT; i++)
+    {
+        if (!cupsOnMap[i].active)
+            continue;
+
+        if (player_x < cupsOnMap[i].x + 8 &&
+            player_x + 16 > cupsOnMap[i].x &&
+            player_y < cupsOnMap[i].y + 8 &&
+            player_y + 16 > cupsOnMap[i].y)
+        {
+            cupsOnMap[i].active = false;
+
+            cups++;
+            score++;
+
+            if (cups >= total_cups[level])
+            {
+                saveBestScore();
+
+                timer_started = millis();
+                state = LEVEL_COMPLETE;
+            }
+        }
+    }
 }
