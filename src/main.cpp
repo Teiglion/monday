@@ -5,11 +5,22 @@
 #include "assets.h"
 #include "music.h"
 
-#define jump_time 500
+#define jump_time 1100
 #define attack_time 330
 #define splash_delay 1000
 #define final_screen_delay 2000
 #define level_delay 3000
+#define GO_DELAY 1000
+#define JUMP_Y 12
+#define PITCH 20
+#define SPAWN_X 130
+#define OBSTACLE_COUNT 10
+
+// кодирование маршрута: байт = (spriteIdx<<3) | (lane&7); бит 6 - ворота (куст+препятствие)
+#define EMPTY 0
+#define O(sp, ln) ((uint8_t)(((sp) << 3) | ((ln) & 7)))
+#define GGE 0x40
+#define G(sp) ((uint8_t)(GGE | ((sp) << 3)))
 
 Arduboy2 arduboy;
 ArduboyTones sound(arduboy.audio.enabled);
@@ -53,16 +64,19 @@ uint32_t action_timestamp;
 uint32_t timer_started;
 bool player_state = true;
 bool action_music = false;
+bool is_attacking = false;
 uint8_t level = 0;
 uint8_t total_cups[3] = {5, 8, 8};
 uint8_t cups = 0;
 uint8_t best_score[3] = {0, 0, 0};
 
-//препятсвия
+//препятствия
 struct Obstacle {
     int16_t obsX;
     int8_t obsLane;
     int8_t type;
+    int8_t oY;
+    bool isBush;
 };
 
 struct Cup
@@ -86,20 +100,69 @@ const uint8_t* const PROGMEM obstacleSprites[]  = {
     bush2
 };
 
-const int16_t MIN_SPACE = 24; //Мин раст между препятсвиями
-int8_t obstacleWidths = 16;
-
-const int8_t OBSTACLE_COUNT = 10;
 Obstacle obstacles[OBSTACLE_COUNT];
-int16_t spawnTimer = 0;
+uint16_t spawnIdx = 0;
 uint8_t obsSpeed = 1;
-int16_t spawnDistance = 120;
 uint8_t score = 0;
-uint8_t difficultyLevel = 1;
-bool obstaclesInit = false;
 
 int16_t bgScrollx = 0;
-const int8_t BG_SCROLL_SPEED = 1;
+int8_t SCROLL_SPEED = 1;
+const int8_t LEVEL_SPEEDS[3] = {1, 1, 2};
+
+// карта спавна препятствий для каждого уровня
+const uint8_t PROGMEM route1[] = {
+    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
+    EMPTY,  EMPTY,  EMPTY,
+    O(4,0), EMPTY,  EMPTY,
+    O(1,1), EMPTY,  EMPTY,
+    EMPTY,  EMPTY,
+    G(0),   EMPTY,  EMPTY,
+    O(4,0), EMPTY,  EMPTY,
+    O(2,1), EMPTY,  EMPTY,
+    O(6,0), EMPTY,  EMPTY,
+    G(1),   EMPTY,  EMPTY,
+    O(5,0), EMPTY,  EMPTY,
+    O(7,0), EMPTY,  EMPTY,
+    EMPTY,  EMPTY
+};
+
+const uint8_t PROGMEM route2[] = {
+    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
+    EMPTY,  EMPTY,  EMPTY,  EMPTY,
+    O(4,0), EMPTY,  EMPTY,  EMPTY,
+    O(1,1), EMPTY,  EMPTY,
+    G(0),   EMPTY,  EMPTY,  EMPTY,
+    O(7,0), EMPTY,  EMPTY,
+    O(3,0), EMPTY,  EMPTY,  EMPTY,
+    O(2,1), EMPTY,  EMPTY,
+    G(1),   EMPTY,  EMPTY,  EMPTY,
+    O(5,0), EMPTY,  EMPTY,
+    O(6,0), EMPTY,  EMPTY,
+    O(0,1), EMPTY,  EMPTY,
+    EMPTY,  EMPTY
+};
+
+const uint8_t PROGMEM route3[] = {
+    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
+    EMPTY,  EMPTY,  EMPTY,  EMPTY,
+    O(1,1), EMPTY,  EMPTY,  EMPTY,
+    O(3,0), EMPTY,  EMPTY,
+    G(0),   EMPTY,  EMPTY,
+    O(2,1), EMPTY,  EMPTY,  EMPTY,
+    O(5,0), EMPTY,  EMPTY,
+    G(1),   EMPTY,  EMPTY,
+    O(4,0), EMPTY,  EMPTY,  EMPTY,
+    O(7,0), EMPTY,  EMPTY,
+    O(6,1), EMPTY,  EMPTY,
+    O(0,1), EMPTY,  EMPTY,  EMPTY,
+    G(0),   EMPTY,  EMPTY,
+    O(3,0), EMPTY,  EMPTY,  EMPTY,
+    O(4,0), EMPTY,  EMPTY,
+    EMPTY,  EMPTY
+};
+
+const uint8_t* const PROGMEM routes[] = {route1, route2, route3};
+const uint8_t routeLens[3] = {44, 50, 60};
 
 
 void drawControls();
@@ -112,14 +175,12 @@ void saveBestScore();
 void drawCups();
 void updateCups();
 void checkCupCollection();
-
-//void initObstacles();
-//void updateDifficulty();
-//void spawnSingle();
-//void spawnLine();З
-//void updateObstacles();
-//void drawObstacles();
-//bool checkCollision();
+void startLevel();
+void spawnRoute();
+void spawnObject(uint8_t ev, int16_t x);
+void updateObstacles();
+void drawObstacles();
+bool checkCollision();
 
 void setup() {
     arduboy.begin();
@@ -133,8 +194,6 @@ void setup() {
     level = 0;
     cups = 0;
     score = 0;
-
-    obstaclesInit = false;
 
     initCups(); 
 
@@ -168,6 +227,7 @@ void loop() {
                 level = 0;
                 cups = 0;
                 score = 0;
+                startLevel();
                 state = PLAY;
             }
             else
@@ -179,7 +239,7 @@ void loop() {
     else if (state == MENU)
     {
         Sprites::drawOverwrite(0, 0, menu, 0);
-        if (arduboy.justPressed(A_BUTTON))state = PLAY;
+        if (arduboy.justPressed(A_BUTTON)){ level = 0; cups = 0; score = 0; startLevel(); state = PLAY; }
         if (arduboy.justPressed(B_BUTTON))state = CONTROLS;
     }
     else if (state == CONTROLS)
@@ -227,6 +287,7 @@ void loop() {
             else
             {
                 cups = 0;
+                startLevel();
                 state = PLAY;
             }
         }  
@@ -237,9 +298,10 @@ void loop() {
 
         if (arduboy.justPressed(A_BUTTON))
         {
-            timer_started = millis();
-            a_state = NONE;
-            obstaclesInit = false;
+            level = 0;
+            cups = 0;
+            score = 0;
+            startLevel();
             state = PLAY;
         }
     }
@@ -249,9 +311,7 @@ void loop() {
 
         if (arduboy.justPressed(A_BUTTON))
         {
-            timer_started = millis();
-            a_state = NONE;
-            obstaclesInit = false;
+            startLevel();
             state = PLAY;
         }
 
@@ -262,54 +322,92 @@ void loop() {
     }
     else if (state == PLAY)
     {
-        scrollBG();
-
-       /*if (!obstaclesInit)
+        if (millis() - timer_started < GO_DELAY)
         {
-            initObstacles();
-            obstaclesInit = true;
+            uint8_t x = 0;
+            for(uint8_t i = 0; i < 16; i++)
+            {
+                Sprites::drawOverwrite(x, 56, floor_img, 0);
+                x += 8;
+            }
+            arduboy.drawLine(0, 8, 128, 8, WHITE);
+            arduboy.drawLine(0, 16, 128, 16, WHITE);
+            Sprites::drawOverwrite(0, 9, lamp, 0);
+            Sprites::drawOverwrite(128, 9, lamp, 0);
+            Sprites::drawSelfMasked(player_x, player_y, player1, 0);
+            arduboy.setCursor(56, 28);
+            arduboy.print(F("GO!"));
         }
-        updateObstacles();*/ 
-
-        uint8_t x=0;
-        for(uint8_t i=0; i<16;i++)
+        else
         {
-           Sprites::drawOverwrite(x, 56, floor_img, 0); 
-           x+=8;
+            scrollBG();
+            spawnRoute();
+            updateObstacles(); 
+
+            uint8_t x=0;
+            for(uint8_t i=0; i<16;i++)
+            {
+                Sprites::drawOverwrite(x, 56, floor_img, 0); 
+                x+=8;
+            }
+            arduboy.setCursor(2, 0);
+            arduboy.print(F("CUPS: "));
+            arduboy.print(score);
+
+            arduboy.setCursor(82, 0);
+            arduboy.print(cups);
+            arduboy.print('/');
+            arduboy.print(total_cups[level]);
+
+            arduboy.drawLine(0, 8, 128, 8, WHITE);
+            arduboy.drawLine(0, 16, 128, 16, WHITE);
+
+            updateCups();
+            drawCups();
+            drawObstacles();
+            movePlayer();
+            checkCupCollection();
+
+            if (checkCollision())
+            {
+                timer_started = millis();
+                a_state = NONE;
+                state = FAIL;
+            }
+
+            if (cups >= total_cups[level])
+            {
+                saveBestScore();
+
+                timer_started = millis();
+                state = LEVEL_COMPLETE;
+            }
+             if (spawnIdx >= routeLens[level]) 
+            {
+            bool objectsStillActive = false;
+
+            for (uint8_t i = 0; i < OBSTACLE_COUNT; i++) {
+                if (obstacles[i].obsX >= -20) {
+                    objectsStillActive = true;
+                    break;
+                }
+            }
+
+            for (uint8_t i = 0; i < CUP_COUNT; i++) {
+                if (cupsOnMap[i].active && cupsOnMap[i].x >= -8) {
+                    objectsStillActive = true;
+                    break;
+                }
+            }
+
+            if (!objectsStillActive && cups < total_cups[level]) 
+            {
+                timer_started = millis();
+                a_state = NONE;
+                state = FAIL; // Игрок проиграл, так как кружек на карте больше нет
+            }
         }
-        arduboy.setCursor(2, 0);
-        arduboy.print(F("CUPS: "));
-        arduboy.print(score);
-
-        arduboy.setCursor(82, 0);
-        arduboy.print(cups);
-        arduboy.print('/');
-        arduboy.print(total_cups[level]);
-
-        arduboy.drawLine(0, 8, 128, 8, WHITE);
-        arduboy.drawLine(0, 16, 128, 16, WHITE);
-
-        updateCups();
-        checkCupCollection();
-        drawCups();
-        movePlayer();
-
-        if (cups >= total_cups[level])
-        {
-            saveBestScore();
-
-            timer_started = millis();
-            state = LEVEL_COMPLETE;
         }
-        /*drawObstacles();
-
-        if (checkCollision())
-        {
-            timer_started = millis();
-            a_state = NONE;
-            obstaclesInit = false;
-            state = FAIL;
-        }*/
     }
 
    //Sprites::drawSelfMasked(50, 9, crack, 0);
@@ -451,7 +549,7 @@ void movePlayer()
 {
     if (arduboy.everyXFrames(15)) player_state = !player_state;
 
-    if(arduboy.justPressed(LEFT_BUTTON))state = PAUSE;
+    if(arduboy.justPressed(LEFT_BUTTON)) state = PAUSE;
 
     if (arduboy.pressed(UP_BUTTON) && arduboy.pressed(A_BUTTON) && a_state == NONE) 
     {
@@ -463,7 +561,7 @@ void movePlayer()
     else if(arduboy.justPressed(UP_BUTTON) && a_state == NONE)
     {
         a_state = JUMP;
-        player_y = 16;
+        player_y = JUMP_Y;
         action_timestamp = millis();
         action_music = true;
     } 
@@ -474,29 +572,52 @@ void movePlayer()
         action_timestamp = millis();
         action_music = true;
     } 
-    else if(arduboy.justPressed(RIGHT_BUTTON) && a_state == NONE)
+
+
+    if (a_state != NONE && a_state != ATTACK) {
+        uint32_t now = millis();
+        if (now - action_timestamp >= jump_time) {
+            a_state = NONE;
+            player_y = 30;
+        }
+    }
+
+    if(arduboy.justPressed(RIGHT_BUTTON) && !is_attacking)
     {
-        a_state = ATTACK;
-        player_y = 30;
-        action_timestamp = millis();
+        is_attacking = true;
+        if (a_state == NONE) {
+            action_timestamp = millis();
+        }
         action_music = true;
-    } 
-    
-    switch (a_state)
-    {
-        case ActionState::ATTACK : { Sprites::drawSelfMasked(player_x, player_y,attack, 0); uint32_t now = millis(); if(now - action_timestamp >= attack_time) a_state = NONE; break;}
-        case ActionState::JUMP : {Sprites::drawSelfMasked(player_x, player_y,player2, 0); uint32_t now = millis(); if(now - action_timestamp >= jump_time) {a_state = NONE; player_y = 30;} break;}
-        case ActionState::TOP_JUMP : {Sprites::drawSelfMasked(player_x, player_y,sit, 0); uint32_t now = millis(); if(now - action_timestamp >= jump_time) {a_state = NONE; player_y = 30;} break;}
-        case ActionState::SIT : {Sprites::drawSelfMasked(player_x, player_y,sit, 0); uint32_t now = millis(); if(now - action_timestamp >= jump_time) {a_state = NONE; player_y = 30;} break;}
-        case ActionState::NONE : {Sprites::drawSelfMasked(player_x, player_y,player_state ? player1 : player2, 0); break;}
+        sound.tones(attack_theme);
+    }
+
+    static uint32_t attack_start = 0;
+    if (arduboy.justPressed(RIGHT_BUTTON)) attack_start = millis();
+    if (is_attacking && (millis() - attack_start >= attack_time)) {
+        is_attacking = false;
+    }
+
+    if (is_attacking) {
+       Sprites::drawSelfMasked(player_x, player_y, attack, 0);
+    } else {
+        switch (a_state)
+        {
+            case ActionState::JUMP:     Sprites::drawSelfMasked(player_x, player_y, player2, 0); break;
+            case ActionState::TOP_JUMP: Sprites::drawSelfMasked(player_x, player_y, sit, 0); break;
+            case ActionState::SIT:      Sprites::drawSelfMasked(player_x, player_y, sit, 0); break;
+            case ActionState::NONE:     Sprites::drawSelfMasked(player_x, player_y, player_state ? player1 : player2, 0); break;
+            default: break;
+        }
     }
 }
+
 
 void scrollBG(){
     int16_t offset = -(bgScrollx % 128);
     Sprites::drawOverwrite(offset, 9, lamp, 0);
     Sprites::drawOverwrite(offset + 128, 9, lamp, 0);
-    bgScrollx += BG_SCROLL_SPEED;
+    bgScrollx += SCROLL_SPEED;
 }
 
 bool cupFrame = false;
@@ -617,4 +738,127 @@ void checkCupCollection()
             }
         }
     }
+}
+
+void startLevel(){
+    SCROLL_SPEED = LEVEL_SPEEDS[level];
+    obsSpeed = SCROLL_SPEED;
+    bgScrollx = 0;
+    spawnIdx = 0;
+    for(uint8_t i = 0; i < OBSTACLE_COUNT; i++) obstacles[i].obsX = -40;
+    cups = 0;
+    score = 0;
+    player_x = 8;
+    player_y = 30;
+    a_state = NONE;
+    player_state = true;
+    action_music = false;
+    initCups();
+    timer_started = millis();
+}
+
+void spawnRoute(){
+    while(spawnIdx < routeLens[level]){
+        int16_t targetScroll = (int16_t)spawnIdx * PITCH;
+        
+        // Если до этого момента игрок еще не добежал — прекращаем спавн на этом кадре
+        if (targetScroll > bgScrollx) {
+            break;
+        }
+        
+        uint8_t ev = pgm_read_byte((const uint8_t*)pgm_read_ptr(&routes[level]) + spawnIdx);
+        if(ev) {
+            int16_t exactX = SPAWN_X + (bgScrollx - targetScroll);
+            spawnObject(ev, exactX);
+        }
+        spawnIdx++;
+    }
+}
+
+void spawnObject(uint8_t ev, int16_t x){
+    bool gate = ev & GGE;
+    uint8_t idx = (ev >> 3) & 0x07;
+    uint8_t lane = ev & 0x07;
+
+    Obstacle *o = NULL;
+    for(uint8_t i = 0; i < OBSTACLE_COUNT; i++){
+        if(obstacles[i].obsX < -20){ o = &obstacles[i]; break; }
+    }
+    if(!o) return;
+
+    if(!gate){
+        o->obsX = x;
+        o->obsLane = lane;
+        o->type = idx;
+        o->oY = (lane == 1) ? 25 : 46;
+        o->isBush = (idx == 2 || idx == 7);
+    }
+    else{
+        o->obsX = x;
+        o->obsLane = 2;
+        o->type = idx;
+        o->oY = 25;
+        o->isBush = false;
+
+        for(uint8_t i = 0; i < OBSTACLE_COUNT; i++){
+            if(obstacles[i].obsX < -20){
+                obstacles[i].obsX = x;
+                obstacles[i].obsLane = 0;
+                obstacles[i].type = 2; // bush1
+                obstacles[i].oY = 46;
+                obstacles[i].isBush = true;
+                break;
+            }
+        }
+    }
+}
+
+void updateObstacles(){
+    for(uint8_t i = 0; i < OBSTACLE_COUNT; i++){
+        if(obstacles[i].obsX < -20) continue;
+        obstacles[i].obsX -= SCROLL_SPEED;
+    }
+}
+
+void drawObstacles(){
+    for(uint8_t i = 0; i < OBSTACLE_COUNT; i++){
+        Obstacle *o = &obstacles[i];
+        if(o->obsX < -16 || o->obsX > 140) continue; 
+        Sprites::drawOverwrite(o->obsX, o->oY, (const uint8_t*)pgm_read_ptr(&obstacleSprites[o->type]), 0);
+    }
+}
+
+
+bool checkCollision(){
+    int16_t px = (int16_t)player_x + 4, pw = 8;
+    int16_t py, ph;
+
+    switch (a_state)
+    {
+        case ActionState::JUMP:     py = 16 + 6; ph = 20; break;
+        case ActionState::TOP_JUMP: py = 16 + 2; ph = 16; break;
+        case ActionState::SIT:      py = 46 + 4; ph = 8; break;
+        default:                    py = 30 + 4; ph = 24; break; // NONE и старый ATTACK
+    }
+
+    for(uint8_t i = 0; i < OBSTACLE_COUNT; i++){
+        Obstacle *o = &obstacles[i];
+        if(o->obsX < -20) continue;
+
+        int16_t ox = o->obsX + 4, ow = 8;
+        int16_t oy = o->oY + 4, oh = 8;
+
+
+        if(px < ox + ow && ox < px + pw && py < oy + oh && oy < py + ph)
+        {
+
+            if(o->isBush && is_attacking)
+            {
+                o->obsX = -40;
+                continue;  
+            }    
+            return true; 
+        }
+    }
+    return false;
 }
