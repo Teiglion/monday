@@ -142,20 +142,20 @@ void loop() {
 
         if(now - timer_started >= splash_delay && splash_stack == 5) 
         {
-            state = PLAY;
+            state = MENU;
             splash_stack = 0;
         }
     }
-    /*else if (state == MENU)
+    else if (state == MENU)
     {
-        Sprites::drawOverwrite(0, 0, title_img, 0);
+        Sprites::drawOverwrite(0, 0, menu, 0);
         if (arduboy.justPressed(A_BUTTON))state = PLAY;
         if (arduboy.justPressed(B_BUTTON))state = CONTROLS;
-    }*/
+    }
     else if (state == CONTROLS)
     {
         drawControls();
-        if(arduboy.justPressed(B_BUTTON))state = PLAY;
+        if(arduboy.justPressed(B_BUTTON))state = MENU;
     }
     else if (state == PAUSE)
     {
@@ -286,7 +286,7 @@ void update_music()
         action_music = false;
     }
     if(state == prev_state) return;
-    if((prev_state == SPLASH && state == MENU) || prev_state == CONTROLS) return;
+    if((prev_state == SPLASH && state == MENU) || (prev_state == CONTROLS && state == MENU)) return;
     switch (state)
     {
         case GameState::MENU : sound.tones(menu_theme); break;
@@ -300,7 +300,7 @@ void update_music()
 }
 
 void drawControls(){
-    arduboy.setCursor(1, 0);
+    arduboy.setCursor(1, 1);
     arduboy.print(F("CONTROLS || B TO BACK"));
 
     // линия под заголовком
