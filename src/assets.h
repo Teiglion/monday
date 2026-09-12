@@ -3,23 +3,23 @@
 
 #include <stdint.h>
 
-extern const uint8_t start_img[];
-extern const uint8_t title_img[];
-extern const uint8_t win_img[];
-extern const uint8_t fail_img[];
-extern const uint8_t one_img[];
-extern const uint8_t two_img[];
-extern const uint8_t three_img[];
-extern const uint8_t four_img[];
-extern const uint8_t five_img[];
-extern const uint8_t road[];
+extern const uint8_t floor_img[];
+extern const uint8_t electro[];
+extern const uint8_t wires[];
+extern const uint8_t chair[];
+extern const uint8_t table[];
+extern const uint8_t computer[];
+extern const uint8_t cabinet[];
+extern const uint8_t bush1[];
+extern const uint8_t bush2[];
+extern const uint8_t crack[];
+extern const uint8_t lamp[];
+extern const uint8_t vent[];
+extern const uint8_t cup1[];
+extern const uint8_t cup2[];
 extern const uint8_t player1[];
 extern const uint8_t player2[];
-extern const uint8_t jump_img[];
-extern const uint8_t attack_img[];
-extern const uint8_t box_img[];
-extern const uint8_t bush1_img[];
-extern const uint8_t bush2_img[];
-extern const uint8_t car_img[];
+extern const uint8_t attack[];
+extern const uint8_t sit[];
 
 #endif
