@@ -4,12 +4,15 @@
 #include "assets.h"
 #include "music.h"
 
+#define jump_time 500
+#define attack_time 330
+
 Arduboy2 arduboy;
 ArduboyTones sound(arduboy.audio.enabled);
 
 enum GameState 
 {
-  SPLASH,
+  //SPLASH,
   MENU,
   CONTROLS,
   PLAY,
@@ -22,8 +25,9 @@ enum GameState
 enum ActionState
 {
     JUMP,
-    LONG_JUMP,
+    TOP_JUMP,
     ATTACK,
+    SIT,
     NONE
 };
 
@@ -31,19 +35,15 @@ GameState state;
 GameState prev_state;
 ActionState a_state;
 
-const uint32_t splash_delay = 2000;
+//const uint32_t splash_delay = 2000;
 const uint32_t final_screen_delay = 2000;
 
 uint8_t player_x = 8;
-uint32_t action_timestap;
+uint8_t player_y = 30;
+uint32_t action_timestamp;
 uint32_t timer_started;
 bool player_state = true;
 bool action_music = false;
-
-//===========================Hammergo==============================
-// MOVING
-const uint8_t LINE_TOP[3] = {35, 42, 49};
-uint8_t playerLine = 0;
 
 //препятсвия
 struct Obstacle {
@@ -51,17 +51,21 @@ struct Obstacle {
     int8_t obsLane;
     int8_t type;
 };
-const uint8_t* const obstacleSprites[] PROGMEM = { //Rename
-    box_img,
-    bush1_img,
-    car_img,
-    bush2_img
+const uint8_t* const PROGMEM obstacleSprites[]  = { 
+    electro,
+    wires,
+    bush1,
+    chair,
+    table,
+    computer,
+    cabinet,
+    bush2
 };
 
 const int16_t MIN_SPACE = 24; //Мин раст между препятсвиями
-const int8_t obstacleWidths[] = {5, 5, 13, 5};
+int8_t obstacleWidths = 16;
 
-const int8_t OBSTACLE_COUNT = 6;
+const int8_t OBSTACLE_COUNT = 10;
 Obstacle obstacles[OBSTACLE_COUNT];
 int16_t spawnTimer = 0;
 uint8_t obsSpeed = 1;
@@ -73,29 +77,29 @@ bool obstaclesInit = false;
 
 
 
-//движение задника
+
 int16_t bgScrollx = 0;
 const int8_t BG_SCROLL_SPEED = 1;
 
-//========================================================================
+
 void drawControls();
 void update_music();
 void movePlayer();
 void scrollBG();
-void initObstacles();
-void updateDifficulty();
-void spawnSingle();
-void spawnLine();
-void updateObstacles();
-void drawObstacles();
-bool checkCollision();
+//void initObstacles();
+//void updateDifficulty();
+//void spawnSingle();
+//void spawnLine();
+//void updateObstacles();
+//void drawObstacles();
+//bool checkCollision();
 
 void setup() {
     arduboy.begin();
     arduboy.clear();
     arduboy.setFrameRate(30);
     arduboy.audio.on();
-    prev_state = state = SPLASH;
+    prev_state = state = CONTROLS;
     a_state = NONE;
     obstaclesInit = false;
     sound.tones(menu_theme);
@@ -107,7 +111,7 @@ void loop() {
     arduboy.clear();
     arduboy.pollButtons();
     update_music();
-    if(state == SPLASH){
+    /*if(state == SPLASH){
         uint32_t now = millis();
         Sprites::drawOverwrite(0, 0, start_img, 0);
         if(now - timer_started >= splash_delay) state = MENU;
@@ -117,24 +121,24 @@ void loop() {
         Sprites::drawOverwrite(0, 0, title_img, 0);
         if (arduboy.justPressed(A_BUTTON))state = PLAY;
         if (arduboy.justPressed(B_BUTTON))state = CONTROLS;
-    }
-    else if (state == CONTROLS)
+    }*/
+    if (state == CONTROLS)
     {
         drawControls();
-        if(arduboy.justPressed(B_BUTTON))state =  MENU;
+        if(arduboy.justPressed(B_BUTTON))state = PLAY;
     }
     else if (state == PAUSE)
     {
         arduboy.setCursor(50, 10);
         arduboy.print(F("PAUSE"));
 
-        arduboy.setCursor(20, 30);
+        arduboy.setCursor(15, 30);
         arduboy.print(F("PRESS A TO RESUME"));
 
         if (arduboy.justPressed(A_BUTTON)) state = PLAY;
     }
     else if (state == LEVEL_COMPLETE){}
-    else if (state == WIN)
+    /*else if (state == WIN)
     {
         uint32_t now = millis();
         if(now - timer_started < final_screen_delay) Sprites::drawOverwrite(0, 0, win_img, 0);
@@ -177,13 +181,95 @@ void loop() {
 
             if (arduboy.justPressed(B_BUTTON))state = MENU;
         }
+    }*/
+    else if (state == PLAY)
+    {
+        scrollBG();
+
+       /*if (!obstaclesInit)
+        {
+            initObstacles();
+            obstaclesInit = true;
+        }
+        updateObstacles();*/ 
+
+        uint8_t x=0;
+        for(uint8_t i=0; i<16;i++)
+        {
+           Sprites::drawOverwrite(x, 56, floor_img, 0); 
+           x+=8;
+        }
+        arduboy.drawLine(0, 8, 128, 8, WHITE);
+        arduboy.drawLine(0, 16, 128, 16, WHITE);
+
+        movePlayer();
+        /*drawObstacles();
+
+        if (checkCollision())
+        {
+            timer_started = millis();
+            a_state = NONE;
+            obstaclesInit = false;
+            state = FAIL;
+        }*/
     }
+
+   //Sprites::drawSelfMasked(50, 9, crack, 0);
+   //Sprites::drawSelfMasked(20, 9, lamp, 0);
+   //Sprites::drawSelfMasked(80, 9, vent, 0);
+
+   //Sprites::drawOverwrite(5, 25, wires, 0);
+   //Sprites::drawOverwrite(25, 31, cabinet, 0);
+   //Sprites::drawOverwrite(25, 46, cabinet, 0);
+   //Sprites::drawSelfMasked(25, 30, player1, 0);
+   //Sprites::drawOverwrite(50, 25, electro, 0);
+   //Sprites::drawSelfMasked(50, 46, bush1, 0);
+   //Sprites::drawSelfMasked(50, 30, player2, 0);
+   //Sprites::drawSelfMasked(75, 30, attack, 0);
+   //Sprites::drawSelfMasked(5, 46, sit, 0);
+   //Sprites::drawSelfMasked(65, 46, bush2, 0);
+   //Sprites::drawSelfMasked(80, 44, chair, 0);
+   //Sprites::drawSelfMasked(110, 38, computer, 0);
+   //Sprites::drawSelfMasked(110, 44, table, 0);
+
+   //Sprites::drawSelfMasked(80, 30, cup1, 0);
+   //Sprites::drawSelfMasked(100, 30, cup2, 0);
+   //Sprites::drawSelfMasked(100, 16, sit, 0);
+   //Sprites::drawOverwrite(100, 31, cabinet, 0);
+   //Sprites::drawOverwrite(100, 46, cabinet, 0);
+
     arduboy.display();
 }
 
+void update_music()
+{
+    if(action_music && (a_state == JUMP || a_state == TOP_JUMP || a_state == SIT))
+    {
+        sound.tones(jump_theme);
+        action_music = false;
+    }
+    if(action_music && a_state == ATTACK)
+    {
+        sound.tones(attack_theme);
+        action_music = false;
+    }
+    if(state == prev_state) return;
+    //if((prev_state == SPLASH && state == MENU) || prev_state == CONTROLS) return;
+    switch (state)
+    {
+        case GameState::MENU : sound.tones(menu_theme); break;
+        case GameState::PLAY : sound.noTone(); break;
+        case GameState::LEVEL_COMPLETE : sound.tones(level_complete); break;
+        case GameState::FAIL : sound.tones(fail_theme); break;
+        case GameState::WIN : sound.tones(win_theme); break;
+        default : break;
+    }
+    prev_state = state;
+}
+
 void drawControls(){
-    arduboy.setCursor(40, 0);
-    arduboy.print(F("CONTROLS"));
+    arduboy.setCursor(1, 0);
+    arduboy.print(F("CONTROLS || B TO BACK"));
 
     // линия под заголовком
     arduboy.drawLine(3, 9, 125, 9);
@@ -264,175 +350,54 @@ void drawControls(){
     arduboy.print(F(" + A"));
 }
 
-void movePlayer(){
+void movePlayer()
+{
+    if (arduboy.everyXFrames(15)) player_state = !player_state;
 
+    if(arduboy.justPressed(LEFT_BUTTON))state = PAUSE;
+
+    if (arduboy.pressed(UP_BUTTON) && arduboy.pressed(A_BUTTON) && a_state == NONE) 
+    {
+        a_state = TOP_JUMP;
+        player_y = 16;
+        action_timestamp = millis();
+        action_music = true;
+    }
+    else if(arduboy.justPressed(UP_BUTTON) && a_state == NONE)
+    {
+        a_state = JUMP;
+        player_y = 16;
+        action_timestamp = millis();
+        action_music = true;
+    } 
+    else if(arduboy.justPressed(DOWN_BUTTON) && a_state == NONE)
+    {
+        a_state = SIT;
+        player_y = 46;
+        action_timestamp = millis();
+        action_music = true;
+    } 
+    else if(arduboy.justPressed(RIGHT_BUTTON) && a_state == NONE)
+    {
+        a_state = ATTACK;
+        player_y = 30;
+        action_timestamp = millis();
+        action_music = true;
+    } 
+    
+    switch (a_state)
+    {
+        case ActionState::ATTACK : { Sprites::drawSelfMasked(player_x, player_y,attack, 0); uint32_t now = millis(); if(now - action_timestamp >= attack_time) a_state = NONE; break;}
+        case ActionState::JUMP : {Sprites::drawSelfMasked(player_x, player_y,player2, 0); uint32_t now = millis(); if(now - action_timestamp >= jump_time) {a_state = NONE; player_y = 30;} break;}
+        case ActionState::TOP_JUMP : {Sprites::drawSelfMasked(player_x, player_y,sit, 0); uint32_t now = millis(); if(now - action_timestamp >= jump_time) {a_state = NONE; player_y = 30;} break;}
+        case ActionState::SIT : {Sprites::drawSelfMasked(player_x, player_y,sit, 0); uint32_t now = millis(); if(now - action_timestamp >= jump_time) {a_state = NONE; player_y = 30;} break;}
+        case ActionState::NONE : {Sprites::drawSelfMasked(player_x, player_y,player_state ? player1 : player2, 0); break;}
+    }
 }
 
-
-//сменить имя файла задника
 void scrollBG(){
     int16_t offset = -(bgScrollx % 128);
-    Sprites::drawOverwrite(offset, 0, five_img, 0);
-    Sprites::drawOverwrite(offset + 128, 0, five_img, 0);
+    Sprites::drawOverwrite(offset, 9, lamp, 0);
+    Sprites::drawOverwrite(offset + 128, 9, lamp, 0);
     bgScrollx += BG_SCROLL_SPEED;
-}
-void initObstacles()
-{
-    for (int8_t i = 0; i < OBSTACLE_COUNT; i++)
-    {
-        obstacles[i].obsX = 128 + i * 50;
-        obstacles[i].obsLane = random(0, 3);
-        obstacles[i].type = random(0, 4);
-    }
-    spawnTimer = 0;
-    score = 0;
-    difficultyLevel = 1;
-    obsSpeed = 1;
-    spawnDistance = 120;
-}
-
-void updateDifficulty()
-{
-    if(score >= 50){
-        state = WIN;
-    }
-    else if (score >= 20)
-    {
-        difficultyLevel = 3;
-        obsSpeed = 3;
-        spawnDistance = 30;
-    }
-    else if (score >= 10)
-    {
-        difficultyLevel = 2;
-        obsSpeed = 2;
-        spawnDistance = 40;
-    }
-    else
-    {
-        difficultyLevel = 1;
-        obsSpeed = 1;
-        spawnDistance = 50;
-    }
-}
-
-void spawnSingle()
-{
-    for (int8_t i = 0; i < OBSTACLE_COUNT; i++)
-    {
-        if (obstacles[i].obsX <= -20)
-        {
-            obstacles[i].obsX = max((int16_t)(128 + random(0, 20)), (int16_t)(rightmostActiveX() + MIN_SPACE));
-            obstacles[i].obsLane = random(0, 3);
-            obstacles[i].type = random(0, 3);
-            return;
-        }
-    }
-}
-void spawnLine(){
-        int8_t size = (random(0, 100) < 50) ? 2 : 3;
-
-    int8_t freeSlots = 0;
-    for (int8_t i = 0; i < OBSTACLE_COUNT; i++)
-    {
-        if (obstacles[i].obsX <= -20) freeSlots++;
-    }
-
-    if (freeSlots < size)
-    {
-        spawnSingle();
-        return;
-    }
-
-    bool usedLane[3] = { false, false, false };
-    int8_t lanes[3];
-    int8_t picked = 0;
-
-    while (picked < size)
-    {
-        int8_t c = random(0, 3);
-        if (!usedLane[c])
-        {
-            usedLane[c] = true;
-            lanes[picked] = c;
-            picked++;
-        }
-    }
-
-    int16_t commonX = max((int16_t)(128 + random(0, 20)), (int16_t)(rightmostActiveX() + MIN_SPACE));
-    int8_t slotIdx = 0;
-
-    for (int8_t p = 0; p < size; p++)
-    {
-        while (slotIdx < OBSTACLE_COUNT && obstacles[slotIdx].obsX > -20) slotIdx++;
-        if (slotIdx >= OBSTACLE_COUNT) break;
-
-        obstacles[slotIdx].obsX = commonX;
-        obstacles[slotIdx].obsLane = lanes[p];
-        obstacles[slotIdx].type = random(0, 4);
-        slotIdx++;
-    }
-}
-
-void updateObstacles()
-{
-    for (int8_t i = 0; i < OBSTACLE_COUNT; i++)
-    {
-        if (obstacles[i].obsX > -20)
-        {
-            obstacles[i].obsX -= obsSpeed;
-        }
-    }
-
-    for (int8_t i = 0; i < OBSTACLE_COUNT; i++)
-    {
-        if (obstacles[i].obsX > -20 && obstacles[i].obsX < -8)
-        {
-            score++;
-            obstacles[i].obsX = -25;
-        }
-    }
-
-    updateDifficulty();
-
-    spawnTimer += obsSpeed;
-
-    if (spawnTimer >= spawnDistance)
-    {
-        if (random(0, 100) < 65)
-            spawnSingle();
-        else
-            spawnLine();
-
-        spawnTimer = 0;
-    }
-}
-
-void drawObstacles()
-{
-    for (int8_t i = 0; i < OBSTACLE_COUNT; i++)
-    {
-        if (obstacles[i].obsX < -20) continue;
-
-        const uint8_t *spr = (const uint8_t*)pgm_read_ptr(&obstacleSprites[obstacles[i].type]);
-        int8_t oy = LINE_TOP[obstacles[i].obsLane];
-        Sprites::drawOverwrite(obstacles[i].obsX, oy, spr, 0);
-    }
-}
-
-bool checkCollision()
-{
-    bool flag = false;
-    for (int8_t i = 0; i < OBSTACLE_COUNT; i++)
-    {
-        if (obstacles[i].obsX < -20 || obstacles[i].obsLane != playerLine || a_state == JUMP || a_state == LONG_JUMP) continue;
-        if(obstacles[i].type == 1 && a_state == ATTACK && player_x + 8 == obstacles[i].obsX && flag == false)
-        {
-            obstacles[i].type = 3;
-            flag = true;
-        }
-        int8_t obsW = obstacleWidths[obstacles[i].type];
-        if (player_x < obstacles[i].obsX + obsW && player_x + 8 > obstacles[i].obsX && obstacles[i].type != 3)return true;
-    }
-    return false;
 }
