@@ -21,5 +21,8 @@ extern const uint8_t player1[];
 extern const uint8_t player2[];
 extern const uint8_t attack[];
 extern const uint8_t sit[];
+extern const uint8_t win_img[];
+extern const uint8_t fail_img[];
+
 
 #endif

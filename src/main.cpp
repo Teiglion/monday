@@ -74,10 +74,6 @@ uint8_t score = 0;
 uint8_t difficultyLevel = 1;
 bool obstaclesInit = false;
 
-
-
-
-
 int16_t bgScrollx = 0;
 const int8_t BG_SCROLL_SPEED = 1;
 
@@ -93,6 +89,16 @@ void scrollBG();
 //void updateObstacles();
 //void drawObstacles();
 //bool checkCollision();
+
+void resetGame()
+{
+    player_x = 8;
+    player_y = 41;
+    player_state = true;
+    a_state = NONE;
+    obstaclesInit = false;
+    timer_started = millis();
+}
 
 void setup() {
     arduboy.begin();
@@ -138,50 +144,36 @@ void loop() {
         if (arduboy.justPressed(A_BUTTON)) state = PLAY;
     }
     else if (state == LEVEL_COMPLETE){}
-    /*else if (state == WIN)
-    {
-        uint32_t now = millis();
-        if(now - timer_started < final_screen_delay) Sprites::drawOverwrite(0, 0, win_img, 0);
-        else 
-        {
-            arduboy.setCursor(35, 20);
-            arduboy.print(F("YOU DID IT!"));
 
-            arduboy.setCursor(40, 40);
-            arduboy.print(F("PRESS A"));
-            if (arduboy.justPressed(A_BUTTON)) 
-            {
-                setup();
-                state = PLAY;
-            }
+    else if (state == WIN)
+    {
+        Sprites::drawOverwrite(0, 0, win_img, 0);
+
+        if (arduboy.justPressed(A_BUTTON))
+        {
+            timer_started = millis();
+            a_state = NONE;
+            obstaclesInit = false;
+            state = PLAY;
         }
     }
     else if (state == FAIL)
     {
-        uint32_t now = millis();
+        Sprites::drawOverwrite(0, 0, fail_img, 0);
 
-        if (now - timer_started < final_screen_delay) Sprites::drawOverwrite(0, 0, fail_img, 0);
-        else 
+        if (arduboy.justPressed(A_BUTTON))
         {
-            arduboy.setCursor(30, 10);
-            arduboy.print(F("YOU'RE LATE!"));
-
-            arduboy.setCursor(5, 30);
-            arduboy.print(F("PRESS A TO TRY AGAIN"));
-            arduboy.setCursor(5, 45);
-            arduboy.print(F("PRESS B TO MAIN MENU"));
-
-            if (arduboy.justPressed(A_BUTTON)) 
-            {
-                timer_started = millis();
-                a_state = NONE;
-                obstaclesInit = false;
-                state = PLAY;
-            }
-
-            if (arduboy.justPressed(B_BUTTON))state = MENU;
+            timer_started = millis();
+            a_state = NONE;
+            obstaclesInit = false;
+            state = PLAY;
         }
-    }*/
+
+        if (arduboy.justPressed(B_BUTTON))
+        {
+            state = MENU;
+        }
+    }
     else if (state == PLAY)
     {
         scrollBG();
