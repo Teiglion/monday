@@ -6,13 +6,15 @@
 
 #define jump_time 500
 #define attack_time 330
+#define splash_delay 1000
+#define final_screen_delay 2000
 
 Arduboy2 arduboy;
 ArduboyTones sound(arduboy.audio.enabled);
 
 enum GameState 
 {
-  //SPLASH,
+  SPLASH,
   MENU,
   CONTROLS,
   PLAY,
@@ -35,9 +37,14 @@ GameState state;
 GameState prev_state;
 ActionState a_state;
 
-//const uint32_t splash_delay = 2000;
-const uint32_t final_screen_delay = 2000;
-
+uint8_t splash_stack = 0;
+const uint8_t* const PROGMEM splash_sprites [] = {
+    splash1,
+    splash2,
+    splash3,
+    splash4,
+    splash5
+};
 uint8_t player_x = 8;
 uint8_t player_y = 30;
 uint32_t action_timestamp;
@@ -105,7 +112,7 @@ void setup() {
     arduboy.clear();
     arduboy.setFrameRate(30);
     arduboy.audio.on();
-    prev_state = state = CONTROLS;
+    prev_state = state = SPLASH;
     a_state = NONE;
     obstaclesInit = false;
     sound.tones(menu_theme);
@@ -117,18 +124,30 @@ void loop() {
     arduboy.clear();
     arduboy.pollButtons();
     update_music();
-    /*if(state == SPLASH){
+    if(state == SPLASH){
         uint32_t now = millis();
-        Sprites::drawOverwrite(0, 0, start_img, 0);
-        if(now - timer_started >= splash_delay) state = MENU;
+        const uint8_t *splash = (const uint8_t *)pgm_read_ptr(&splash_sprites[splash_stack]);
+        Sprites::drawOverwrite(0, 0, splash, 0);
+
+        if(now - timer_started >= splash_delay)
+        {
+            splash_stack++;
+            timer_started = millis();
+        }
+
+        if(now - timer_started >= splash_delay && splash_stack == 5) 
+        {
+            state = PLAY;
+            splash_stack = 0;
+        }
     }
-    else if (state == MENU)
+    /*else if (state == MENU)
     {
         Sprites::drawOverwrite(0, 0, title_img, 0);
         if (arduboy.justPressed(A_BUTTON))state = PLAY;
         if (arduboy.justPressed(B_BUTTON))state = CONTROLS;
     }*/
-    if (state == CONTROLS)
+    else if (state == CONTROLS)
     {
         drawControls();
         if(arduboy.justPressed(B_BUTTON))state = PLAY;
@@ -246,7 +265,7 @@ void update_music()
         action_music = false;
     }
     if(state == prev_state) return;
-    //if((prev_state == SPLASH && state == MENU) || prev_state == CONTROLS) return;
+    if((prev_state == SPLASH && state == MENU) || prev_state == CONTROLS) return;
     switch (state)
     {
         case GameState::MENU : sound.tones(menu_theme); break;
