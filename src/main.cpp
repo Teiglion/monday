@@ -566,9 +566,9 @@ void drawCups()
             continue;
 
         if (cupFrame)
-            Sprites::drawOverwrite(cupsOnMap[i].x, cupsOnMap[i].y, cup1, 0);
+            Sprites::drawSelfMasked(cupsOnMap[i].x, cupsOnMap[i].y, cup1, 0);
         else
-            Sprites::drawOverwrite(cupsOnMap[i].x, cupsOnMap[i].y, cup2, 0);
+            Sprites::drawSelfMasked(cupsOnMap[i].x, cupsOnMap[i].y, cup2, 0);
     }
 }
 
