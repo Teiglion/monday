@@ -161,7 +161,7 @@ uint8_t score = 0;
 
 int16_t bgScrollx = 0;
 int8_t SCROLL_SPEED = 1;
-const int8_t LEVEL_SPEEDS[3] = {1, 1, 2};
+const int8_t LEVEL_SPEEDS[3] = {1, 2, 3};
 
 const uint8_t* const PROGMEM bgSprites[] =
 {
@@ -176,61 +176,64 @@ uint8_t bgSprite2 = 1;
 const RouteEvent PROGMEM route1[] =
 {
     CUP_MIDDLE(0),
-    OBS(3, OBS_ELECTRO),
+    OBS(1, OBS_ELECTRO),
+    TALL_CABINET(5),
     BUSH(8),
-    OBS(21, OBS_CHAIR),
-    CUP_TOP(27),
-    TABLE_WITH_COMPUTER(34),
-    BUSH_WITH_TOP_HAZARD(42, OBS_WIRES),
-    CUP_MIDDLE(49),
-    TALL_CABINET(56),
-    OBS(63, OBS_WIRES),
-    CUP_TOP(68),
-    CUP_MIDDLE(75)
+    OBS(11, OBS_CHAIR),
+    CUP_TOP(13),
+    TABLE_WITH_COMPUTER(16),
+    CUP_MIDDLE(18),
+    BUSH_WITH_TOP_HAZARD(19, OBS_WIRES),
+    CUP_TOP(22),
+    TALL_CABINET(22),
+    CUP_MIDDLE(24),
+    OBS(27, OBS_WIRES),
+    TABLE_WITH_COMPUTER(29)
+  
 };
 
 const RouteEvent PROGMEM route2[] =
 {
     CUP_MIDDLE(3),
     OBS(7, OBS_WIRES),
-    CUP_TOP(12),
-    OBS(17, OBS_CHAIR),
-    BUSH(23),
-    CUP_MIDDLE(29),
-    TABLE_WITH_COMPUTER(35),
-    CUP_TOP(42),
-    BUSH_WITH_TOP_HAZARD(48, OBS_ELECTRO),
-    OBS(55, OBS_ELECTRO),
-    CUP_MIDDLE(61),
-    TALL_CABINET(67),
-    CUP_TOP(74),
-    BUSH(81),
-    OBS(87, OBS_TABLE),
-    CUP_MIDDLE(94),
-    OBS(101, OBS_WIRES),
-    CUP_TOP(107)
+    CUP_TOP(11),
+    OBS(15, OBS_CHAIR),
+    BUSH(19),
+    CUP_MIDDLE(18),
+    TABLE_WITH_COMPUTER(23),
+    CUP_TOP(25),
+    BUSH_WITH_TOP_HAZARD(29, OBS_ELECTRO),
+    OBS(34, OBS_ELECTRO),
+    CUP_MIDDLE(38),
+    TALL_CABINET(38),
+    CUP_TOP(39),
+    BUSH(42),
+    CUP_TOP(44),
+    OBS(46, OBS_TABLE),
+    CUP_MIDDLE(49),
+    OBS(52, OBS_WIRES),
+    
 };
 
 const RouteEvent PROGMEM route3[] =
 {
-    CUP_MIDDLE(4),
-    OBS(9, OBS_ELECTRO),
-    CUP_TOP(15),
-    BUSH(21),
-    OBS(28, OBS_CHAIR),
-    CUP_MIDDLE(35),
-    TABLE_WITH_COMPUTER(42),
-    CUP_TOP(50),
-    BUSH_WITH_TOP_HAZARD(58, OBS_WIRES),
-    TALL_CABINET(67),
-    CUP_MIDDLE(76),
-    OBS(83, OBS_WIRES),
-    CUP_TOP(91),
-    BUSH(100),
-    OBS(108, OBS_CABINET),
-    CUP_MIDDLE(117),
-    TABLE_WITH_COMPUTER(126),
-    CUP_TOP(136)
+    BUSH(2),
+    CUP_MIDDLE(5),
+    OBS(9, OBS_WIRES),
+    CUP_MIDDLE(15),
+    OBS(16, OBS_CHAIR),
+    CUP_TOP(19),
+    OBS(23, OBS_CABINET),
+    CUP_MIDDLE(26),
+    BUSH_WITH_TOP_HAZARD(30, OBS_WIRES),
+    CUP_MIDDLE(33),
+    OBS(37, OBS_ELECTRO),
+    CUP_TOP(44),
+    TALL_CABINET(44),
+    CUP_TOP(49),
+    TABLE_WITH_COMPUTER(51),
+    CUP_MIDDLE(54),
+    BUSH(58)
 };
 
 const RouteEvent* const PROGMEM routes[] =
@@ -250,6 +253,7 @@ const uint8_t routeLens[3] =
 void update_music();
 void movePlayer();
 void scrollBG();
+void scrollFloor();
 void initBG();
 uint8_t randomBGSprite();
 void initCups();
@@ -428,12 +432,7 @@ void loop() {
     {
         if (millis() - timer_started < GO_DELAY)
         {
-            uint8_t x = 0;
-            for(uint8_t i = 0; i < 16; i++)
-            {
-                Sprites::drawOverwrite(x, 56, floor_img, 0);
-                x += 8;
-            }
+            scrollFloor();
             arduboy.drawLine(0, 8, 128, 8, WHITE);
             arduboy.drawLine(0, 16, 128, 16, WHITE);
             const uint8_t* sprite1 = (const uint8_t*)pgm_read_ptr(&bgSprites[bgSprite1]);
@@ -449,13 +448,7 @@ void loop() {
             scrollBG();
             spawnRoute();
             updateObstacles(); 
-
-            uint8_t x=0;
-            for(uint8_t i=0; i<16;i++)
-            {
-                Sprites::drawOverwrite(x, 56, floor_img, 0); 
-                x+=8;
-            }
+            scrollFloor();
             arduboy.setCursor(2, 0);
             arduboy.print(F("CUPS: "));
             arduboy.print(score);
@@ -572,14 +565,14 @@ void movePlayer()
         if (arduboy.pressed(UP_BUTTON) && arduboy.pressed(A_BUTTON)) 
         {
             a_state = TOP_JUMP;
-            player_y = 16;
+            player_y = JUMP_Y;
             action_timestamp = millis();
             action_music = true;
         }
         else if(arduboy.justPressed(UP_BUTTON))
         {
             a_state = JUMP;
-            player_y = JUMP_Y;
+            player_y = 16;
             action_timestamp = millis();
             action_music = true;
         } 
@@ -646,6 +639,15 @@ void scrollBG()
 uint8_t randomBGSprite()
 {
     return random(BG_SPRITE_COUNT);
+}
+
+void scrollFloor()
+{
+    int16_t offset = -(bgScrollx % 8);
+    for (int16_t x = offset; x < 128; x += 8)
+    {
+        Sprites::drawOverwrite(x, 56, floor_img, 0);
+    }
 }
 
 void initBG()
@@ -905,6 +907,8 @@ bool spawnRouteEvent(const RouteEvent& ev, int16_t x)
                 return false;
             }
 
+            upperCabinet->oY = 28;
+
             return true;
         }
 
@@ -963,8 +967,8 @@ bool checkCollision()
 
     switch (a_state)
     {
-        case ActionState::JUMP : py = 16; ph = 20; break;
-        case ActionState::TOP_JUMP : py = 16; ph = 16; break;
+        case ActionState::JUMP : py = player_y; ph = 20; break;
+        case ActionState::TOP_JUMP : py = player_y; ph = 16; break;
         case ActionState::SIT : py = 46; ph = 10; break;
         case ActionState::ATTACK : py = 30; ph = 24; break;
         default : py = 30; ph = 24; break;
