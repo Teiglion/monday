@@ -14,6 +14,7 @@
 #define PITCH 20
 #define SPAWN_X 130
 #define OBSTACLE_COUNT 10
+#define TOP_JUMP_DELAY 150
 
 #define OBS(cell, obstacle) \
     { cell, ROUTE_OBSTACLE, obstacle }
@@ -117,6 +118,8 @@ uint32_t timer_started;
 bool player_state = true;
 bool action_music = false;
 bool is_attacking = false;
+bool jump_waiting = false;
+uint32_t jump_wait_timestamp = 0;
 uint8_t level = 0;
 uint8_t total_cups[3] = {5, 8, 8};
 uint8_t cups = 0;
@@ -479,6 +482,7 @@ void loop() {
                 timer_started = millis();
                 a_state = NONE;
                 is_attacking = false;
+                jump_waiting = false;
                 player_y = 30;
                 state = FAIL;
             }
@@ -502,6 +506,7 @@ void loop() {
                     timer_started = millis();
                     a_state = NONE;
                     is_attacking = false;
+                    jump_waiting = false;
                     player_y = 30;
                     state = LEVEL_COMPLETE;
                 }
@@ -545,20 +550,30 @@ void movePlayer()
 
     if (a_state == NONE && !is_attacking)
     {
-        if (arduboy.pressed(UP_BUTTON) && arduboy.pressed(A_BUTTON)) 
+            if (!jump_waiting && arduboy.justPressed(UP_BUTTON))
         {
+            jump_waiting = true;
+            jump_wait_timestamp = millis();
+        }
+
+        if (jump_waiting && arduboy.pressed(A_BUTTON))
+        {
+            jump_waiting = false;
+
             a_state = TOP_JUMP;
             player_y = JUMP_Y;
             action_timestamp = millis();
             action_music = true;
         }
-        else if(arduboy.justPressed(UP_BUTTON))
+        else if (jump_waiting && millis() - jump_wait_timestamp >= TOP_JUMP_DELAY)
         {
+            jump_waiting = false;
+
             a_state = JUMP;
             player_y = 16;
             action_timestamp = millis();
             action_music = true;
-        } 
+        }
         else if(arduboy.justPressed(DOWN_BUTTON))
         {
             a_state = SIT;
@@ -753,6 +768,7 @@ void startLevel()
     player_x = 8;
     player_y = 30;
     a_state = NONE;
+    jump_waiting = false;
     player_state = true;
     is_attacking = false;
     action_music = false;
