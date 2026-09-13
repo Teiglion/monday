@@ -16,11 +16,13 @@
 #define SPAWN_X 130
 #define OBSTACLE_COUNT 10
 
-// кодирование маршрута: байт = (spriteIdx<<3) | (lane&7); бит 6 - ворота (куст+препятствие)
+// кодирование маршрута: байт = (spriteIdx<<3) | (lane&7); бит 6 - ворота (a,b,ln), бит 7 - чашка (и старший бит ворот ln=2)
 #define EMPTY 0
 #define O(sp, ln) ((uint8_t)(((sp) << 3) | ((ln) & 7)))
 #define GGE 0x40
-#define G(sp) ((uint8_t)(GGE | ((sp) << 3)))
+#define G(a, b, ln) ((uint8_t)(GGE | ((ln & 2) << 6) | ((a) << 3) | ((b) & 7)))
+#define CGE 0x80
+#define C(ln) ((uint8_t)(CGE | ((ln) & 7)))
 
 Arduboy2 arduboy;
 ArduboyTones sound(arduboy.audio.enabled);
@@ -66,7 +68,6 @@ bool player_state = true;
 bool action_music = false;
 bool is_attacking = false;
 uint8_t level = 0;
-uint8_t cup_status = 0;
 uint8_t total_cups[3] = {5, 8, 8};
 uint8_t cups = 0;
 uint8_t best_score[3] = {0, 0, 0};
@@ -110,60 +111,71 @@ int16_t bgScrollx = 0;
 int8_t SCROLL_SPEED = 1;
 const int8_t LEVEL_SPEEDS[3] = {1, 1, 2};
 
-// карта спавна препятствий для каждого уровня
+// карта спавна препятствий для каждого уровня (C(lane): lane 0 - сидение 46, 1 - рост 30, 2 - прыжок 16)
+/*
+0 electro Электрощиток 
+1 wires Провода
+2 bush1 Куст 
+3 chair Стул
+4 table Стол 
+5 computer Компьютер 
+6 cabinet Шкаф 
+7 bush2 Куст
+
+G(a, b, ln)
+a - предмет сверху
+b - предмет снизу
+ln - линия
+*/
 const uint8_t PROGMEM route1[] = {
-    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
-    EMPTY,  EMPTY,  EMPTY,
-    O(4,0), EMPTY,  EMPTY,
-    O(1,1), EMPTY,  EMPTY,
+    C(1),           G(0, 2, 1), EMPTY,
+    C(2),           O(2,1), EMPTY,
     EMPTY,  EMPTY,
-    G(0),   EMPTY,  EMPTY,
-    O(4,0), EMPTY,  EMPTY,
-    O(2,1), EMPTY,  EMPTY,
-    O(6,0), EMPTY,  EMPTY,
-    G(1),   EMPTY,  EMPTY,
-    O(5,0), EMPTY,  EMPTY,
-    O(7,0), EMPTY,  EMPTY,
+    G(0,1,2),   EMPTY,
+    C(1),           O(4,0), EMPTY,
+    C(0),           O(2,1), EMPTY,
+    C(2),           O(6,0), EMPTY,
+    C(1),           G(1,2,2),   EMPTY,
+    C(0),           O(5,0), EMPTY,
+    C(2),           O(1,0), EMPTY,
     EMPTY,  EMPTY
 };
 
 const uint8_t PROGMEM route2[] = {
-    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
-    EMPTY,  EMPTY,  EMPTY,  EMPTY,
-    O(4,0), EMPTY,  EMPTY,  EMPTY,
+    C(1),   EMPTY,  EMPTY,  EMPTY,
+    O(1,0), EMPTY,  EMPTY,  C(2),
     O(1,1), EMPTY,  EMPTY,
-    G(0),   EMPTY,  EMPTY,  EMPTY,
-    O(7,0), EMPTY,  EMPTY,
-    O(3,0), EMPTY,  EMPTY,  EMPTY,
-    O(2,1), EMPTY,  EMPTY,
-    G(1),   EMPTY,  EMPTY,  EMPTY,
-    O(5,0), EMPTY,  EMPTY,
+    G(0,2,1),   EMPTY,  EMPTY,  EMPTY,
+    O(7,0), C(1),   EMPTY,
+    O(3,0), EMPTY,  EMPTY,  C(0),
+    O(2,1), EMPTY,  C(2),
+    G(1,2,1),   EMPTY,  EMPTY,  EMPTY,
+    O(5,0), EMPTY,  C(1),
     O(6,0), EMPTY,  EMPTY,
-    O(0,1), EMPTY,  EMPTY,
-    EMPTY,  EMPTY
+    O(0,1), EMPTY,  C(0),
+    C(2),   EMPTY
 };
 
 const uint8_t PROGMEM route3[] = {
-    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY,
-    EMPTY,  EMPTY,  EMPTY,  EMPTY,
-    O(1,1), EMPTY,  EMPTY,  EMPTY,
-    O(3,0), EMPTY,  EMPTY,
-    G(0),   EMPTY,  EMPTY,
+    C(1),   EMPTY,  EMPTY,  EMPTY,
+    O(1,1), EMPTY,  EMPTY,  C(2),
+    O(3,0), EMPTY,  C(0),
+    G(0,2,1),   EMPTY,  C(1),
     O(2,1), EMPTY,  EMPTY,  EMPTY,
-    O(5,0), EMPTY,  EMPTY,
-    G(1),   EMPTY,  EMPTY,
-    O(4,0), EMPTY,  EMPTY,  EMPTY,
-    O(7,0), EMPTY,  EMPTY,
+    O(5,0), EMPTY,  C(2),
+    G(1,2,1),   EMPTY,  EMPTY,
+    O(4,0), EMPTY,  EMPTY,  C(1),
+    O(1,0), EMPTY,  C(0),
     O(6,1), EMPTY,  EMPTY,
-    O(0,1), EMPTY,  EMPTY,  EMPTY,
-    G(0),   EMPTY,  EMPTY,
+    O(0,1), EMPTY,  EMPTY,  C(2),
+    G(0,2,1),   EMPTY,  EMPTY,
     O(3,0), EMPTY,  EMPTY,  EMPTY,
     O(4,0), EMPTY,  EMPTY,
     EMPTY,  EMPTY
 };
 
 const uint8_t* const PROGMEM routes[] = {route1, route2, route3};
-const uint8_t routeLens[3] = {44, 50, 60};
+const uint8_t routeLens[3] = {(uint8_t)sizeof(route1), (uint8_t)sizeof(route2), (uint8_t)sizeof(route3)};
 
 
 void drawControls();
@@ -179,6 +191,7 @@ void checkCupCollection();
 void startLevel();
 void spawnRoute();
 void spawnObject(uint8_t ev, int16_t x);
+void spawnCup(uint8_t ev, int16_t x);
 void updateObstacles();
 void drawObstacles();
 bool checkCollision();
@@ -359,7 +372,6 @@ void loop() {
             arduboy.print(cups);
             arduboy.print('/');
             arduboy.print(total_cups[level]);
-
             arduboy.drawLine(0, 8, 128, 8, WHITE);
             arduboy.drawLine(0, 16, 128, 16, WHITE);
 
@@ -621,39 +633,16 @@ void scrollBG(){
     bgScrollx += SCROLL_SPEED;
 }
 
+bool cupFrame = false;
+
 void initCups()
 {
-    cupsOnMap[0].x = 130;
-    cupsOnMap[0].y = 30;
-    cupsOnMap[0].active = true;
-
-    cupsOnMap[1].x = 170;
-    cupsOnMap[1].y = 16;
-    cupsOnMap[1].active = true;
-
-    cupsOnMap[2].x = 210;
-    cupsOnMap[2].y = 46;
-    cupsOnMap[2].active = true;
-
-    cupsOnMap[3].x = 250;
-    cupsOnMap[3].y = 30;
-    cupsOnMap[3].active = true;
-
-    cupsOnMap[4].x = 290;
-    cupsOnMap[4].y = 16;
-    cupsOnMap[4].active = true;
-
-    cupsOnMap[5].x = 330;
-    cupsOnMap[5].y = 46;
-    cupsOnMap[5].active = true;
-
-    cupsOnMap[6].x = 370;
-    cupsOnMap[6].y = 30;
-    cupsOnMap[6].active = true;
-
-    cupsOnMap[7].x = 410;
-    cupsOnMap[7].y = 16;
-    cupsOnMap[7].active = true;
+    for (uint8_t i = 0; i < CUP_COUNT; i++)
+    {
+        cupsOnMap[i].x = 0;
+        cupsOnMap[i].y = 30;
+        cupsOnMap[i].active = false;
+    }
 }
 
 void loadBestScores()
@@ -675,22 +664,20 @@ void saveBestScore()
 
 void drawCups()
 {
+    if (arduboy.everyXFrames(8))
+    {
+        cupFrame = !cupFrame;
+    }
+
     for (uint8_t i = 0; i < CUP_COUNT; i++)
     {
         if (!cupsOnMap[i].active)
             continue;
 
-        if (cup_status == 0)
-            Sprites::drawSelfMasked(cupsOnMap[i].x, cupsOnMap[i].y, cup1, 0);
-        else if (cup_status == 1)
-            Sprites::drawSelfMasked(cupsOnMap[i].x, cupsOnMap[i].y, cup2, 0);
-        else if (cup_status == 2)
-            Sprites::drawSelfMasked(cupsOnMap[i].x, cupsOnMap[i].y, cup3, 0);
-    }
-    if (arduboy.everyXFrames(8))
-    {
-        cup_status++;
-        if (cup_status > 2)cup_status = 0;
+        if (cupFrame)
+            Sprites::drawOverwrite(cupsOnMap[i].x, cupsOnMap[i].y, cup1, 0);
+        else
+            Sprites::drawOverwrite(cupsOnMap[i].x, cupsOnMap[i].y, cup2, 0);
     }
 }
 
@@ -705,7 +692,7 @@ void updateCups()
 
         if (cupsOnMap[i].x < -8)
         {
-            cupsOnMap[i].x = 130;
+            cupsOnMap[i].active = false;
         }
     }
 }
@@ -770,7 +757,12 @@ void spawnRoute(){
         uint8_t ev = pgm_read_byte((const uint8_t*)pgm_read_ptr(&routes[level]) + spawnIdx);
         if(ev) {
             int16_t exactX = SPAWN_X + (bgScrollx - targetScroll);
-            spawnObject(ev, exactX);
+            if(ev & GGE)
+                spawnObject(ev, exactX);
+            else if(ev & CGE)
+                spawnCup(ev, exactX);
+            else
+                spawnObject(ev, exactX);
         }
         spawnIdx++;
     }
@@ -795,22 +787,39 @@ void spawnObject(uint8_t ev, int16_t x){
         o->isBush = (idx == 2 || idx == 7);
     }
     else{
+        uint8_t a = (ev >> 3) & 0x07;
+        uint8_t b = ev & 0x07;
+        bool high = ev & 0x80;
+
         o->obsX = x;
         o->obsLane = 2;
-        o->type = idx;
-        o->oY = 25;
-        o->isBush = false;
+        o->type = a;
+        o->oY = high ? 16 : 25;
+        o->isBush = (a == 2 || a == 7);
 
         for(uint8_t i = 0; i < OBSTACLE_COUNT; i++){
             if(obstacles[i].obsX < -20){
                 obstacles[i].obsX = x;
                 obstacles[i].obsLane = 0;
-                obstacles[i].type = 2; // bush1
-                obstacles[i].oY = 46;
-                obstacles[i].isBush = true;
+                obstacles[i].type = b;
+                obstacles[i].oY = high ? 25 : 46;
+                obstacles[i].isBush = (b == 2 || b == 7);
                 break;
             }
         }
+    }
+}
+
+void spawnCup(uint8_t ev, int16_t x){
+    uint8_t lane = ev & 0x07;
+
+    for(uint8_t i = 0; i < CUP_COUNT; i++){
+        if(cupsOnMap[i].active) continue;
+
+        cupsOnMap[i].x = x;
+        cupsOnMap[i].y = (lane == 0) ? 46 : (lane == 1) ? 30 : 16;
+        cupsOnMap[i].active = true;
+        return;
     }
 }
 
