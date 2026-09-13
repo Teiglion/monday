@@ -14,7 +14,7 @@
 #define PITCH 20
 #define SPAWN_X 130
 #define OBSTACLE_COUNT 10
-#define TOP_JUMP_DELAY 150
+#define TOP_JUMP_DELAY 50
 
 #define OBS(cell, obstacle) \
     { cell, ROUTE_OBSTACLE, obstacle }
@@ -196,7 +196,7 @@ const RouteEvent PROGMEM route1[] =
     TALL_CABINET(22),
     CUP_MIDDLE(24),
     OBS(27, OBS_WIRES),
-    TABLE_WITH_COMPUTER(29)
+    TABLE_WITH_COMPUTER(30)
   
 };
 
