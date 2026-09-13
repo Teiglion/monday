@@ -13,6 +13,8 @@ extern const uint8_t computer[];
 extern const uint8_t cabinet[];
 extern const uint8_t bush1[];
 extern const uint8_t bush2[];
+extern const uint8_t door1[];
+extern const uint8_t door2[];
 
 extern const uint8_t crack[];
 extern const uint8_t lamp[];
@@ -31,6 +33,8 @@ extern const uint8_t win_img[];
 extern const uint8_t fail_img[];
 
 extern const uint8_t menu[];
+extern const uint8_t controls1[];
+extern const uint8_t controls2[];
 
 extern const uint8_t splash1[];
 extern const uint8_t splash2[];
