@@ -574,14 +574,14 @@ void movePlayer()
             action_timestamp = millis();
             action_music = true;
         }
-        else if(arduboy.justPressed(DOWN_BUTTON))
+        else if(!jump_waiting && arduboy.justPressed(DOWN_BUTTON))
         {
             a_state = SIT;
             player_y = 46;
             action_timestamp = millis();
             action_music = true;
         } 
-        else if (arduboy.justPressed(RIGHT_BUTTON))
+        else if (!jump_waiting && arduboy.justPressed(RIGHT_BUTTON))
         {
             a_state = ATTACK;
             is_attacking = true;
