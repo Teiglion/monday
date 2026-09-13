@@ -121,7 +121,13 @@ uint8_t level = 0;
 uint8_t total_cups[3] = {5, 8, 8};
 uint8_t cups = 0;
 uint8_t cup_animation = 0;
-uint8_t best_score[3] = {0, 0, 0};
+uint8_t score = 0;
+uint8_t run_score = 0;
+uint8_t best_score = 0;
+uint8_t level_start_score = 0;
+const uint8_t EEPROM_MAGIC = 0xA7;
+const uint8_t EEPROM_MAGIC_ADDR = 0;
+const uint8_t EEPROM_BEST_SCORE_ADDR = 1;
 
 struct Obstacle
 {
@@ -157,7 +163,6 @@ const uint8_t* const PROGMEM obstacleSprites[]  = {
 Obstacle obstacles[OBSTACLE_COUNT];
 uint16_t spawnIdx = 0;
 uint8_t obsSpeed = 1;
-uint8_t score = 0;
 
 int16_t bgScrollx = 0;
 int8_t SCROLL_SPEED = 1;
@@ -323,6 +328,7 @@ void loop() {
                 level = 0;
                 cups = 0;
                 score = 0;
+                run_score = 0;
                 startLevel();
                 state = MENU;
             }
@@ -335,7 +341,10 @@ void loop() {
     else if (state == MENU)
     {
         Sprites::drawOverwrite(0, 0, menu, 0);
-        if (arduboy.justPressed(A_BUTTON)){ level = 0; cups = 0; score = 0; startLevel(); state = PLAY; }
+        arduboy.setCursor(44, 52);
+        arduboy.print(F("BS: "));
+        arduboy.print(best_score);
+        if (arduboy.justPressed(A_BUTTON)){ level = 0; cups = 0; score = 0; run_score = 0; startLevel(); state = PLAY; }
         if (arduboy.justPressed(B_BUTTON)){controls_page = 0;state = CONTROLS;}
     }
     else if (state == CONTROLS)
@@ -382,16 +391,13 @@ void loop() {
         arduboy.print(score);
 
         arduboy.setCursor(10, 55);
-        arduboy.print(F("BEST "));
-        arduboy.print(best_score[level]);
+        arduboy.print(F("RUN SCORE "));
+        arduboy.print(run_score);
         if(now - timer_started >= level_delay)
         {
             level++;
 
-            if (level >= 3)
-            {
-                state = WIN;
-            }
+            if (level >= 3) state = WIN;
             else
             {
                 cups = 0;
@@ -409,6 +415,7 @@ void loop() {
             level = 0;
             cups = 0;
             score = 0;
+            run_score = 0;
             startLevel();
             state = MENU;
         }
@@ -419,6 +426,7 @@ void loop() {
 
         if (arduboy.justPressed(A_BUTTON))
         {
+            run_score = level_start_score;
             startLevel();
             state = PLAY;
         }
@@ -491,7 +499,6 @@ void loop() {
                 if (!obstaclesStillActive)
                 {
                     saveBestScore();
-
                     timer_started = millis();
                     a_state = NONE;
                     is_attacking = false;
@@ -501,30 +508,6 @@ void loop() {
             }
         }
     }
-
-   //Sprites::drawSelfMasked(50, 9, crack, 0);
-   //Sprites::drawSelfMasked(20, 9, lamp, 0);
-   //Sprites::drawSelfMasked(80, 9, vent, 0);
-
-   //Sprites::drawOverwrite(5, 25, wires, 0);
-   //Sprites::drawOverwrite(25, 31, cabinet, 0);
-   //Sprites::drawOverwrite(25, 46, cabinet, 0);
-   //Sprites::drawSelfMasked(25, 30, player1, 0);
-   //Sprites::drawOverwrite(50, 25, electro, 0);
-   //Sprites::drawSelfMasked(50, 46, bush1, 0);
-   //Sprites::drawSelfMasked(50, 30, player2, 0);
-   //Sprites::drawSelfMasked(75, 30, attack, 0);
-   //Sprites::drawSelfMasked(5, 46, sit, 0);
-   //Sprites::drawSelfMasked(65, 46, bush2, 0);
-   //Sprites::drawSelfMasked(80, 44, chair, 0);
-   //Sprites::drawSelfMasked(110, 38, computer, 0);
-   //Sprites::drawSelfMasked(110, 44, table, 0);
-
-   //Sprites::drawSelfMasked(80, 30, cup1, 0);
-   //Sprites::drawSelfMasked(100, 30, cup2, 0);
-   //Sprites::drawSelfMasked(100, 16, sit, 0);
-   //Sprites::drawOverwrite(100, 31, cabinet, 0);
-   //Sprites::drawOverwrite(100, 46, cabinet, 0);
     arduboy.display();
 }
 
@@ -668,18 +651,23 @@ void initCups()
 
 void loadBestScores()
 {
-    for (uint8_t i = 0; i < 3; i++)
+    if (EEPROM.read(EEPROM_MAGIC_ADDR) != EEPROM_MAGIC)
     {
-        best_score[i] = EEPROM.read(i);
+        best_score = 0;
+        EEPROM.update(EEPROM_BEST_SCORE_ADDR, best_score);
+        EEPROM.update(EEPROM_MAGIC_ADDR, EEPROM_MAGIC);
+        return;
     }
+
+    best_score = EEPROM.read(EEPROM_BEST_SCORE_ADDR);
 }
 
 void saveBestScore()
 {
-    if (score > best_score[level])
+    if (run_score > best_score)
     {
-        best_score[level] = score;
-        EEPROM.update(level, score);
+        best_score = run_score;
+        EEPROM.update(EEPROM_BEST_SCORE_ADDR, best_score);
     }
 }
 
@@ -736,6 +724,7 @@ void checkCupCollection()
 
             cups++;
             score++;
+            run_score++;
 
         }
     }
@@ -748,6 +737,7 @@ void startLevel()
     bgScrollx = 0;
     initBG();
     spawnIdx = 0;
+    level_start_score = run_score;
     for (uint8_t i = 0; i < OBSTACLE_COUNT; i++)
     {
         obstacles[i].obsX = -40;
