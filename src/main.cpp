@@ -547,6 +547,7 @@ void movePlayer()
     if (arduboy.everyXFrames(15)) player_state = !player_state;
 
     if(arduboy.justPressed(LEFT_BUTTON)) state = PAUSE;
+    if(arduboy.justPressed(B_BUTTON)) state = MENU;
 
     if (a_state == NONE && !is_attacking)
     {
